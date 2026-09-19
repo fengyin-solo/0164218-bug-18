@@ -86,16 +86,17 @@
       <div class="timeline-wrapper">
         <div class="timeline-line"></div>
         <div class="timeline-items">
-          <div 
-            v-for="(item, index) in timeline" 
-            :key="index" 
+          <div
+            v-for="(item, index) in timeline"
+            :key="item.year"
             class="timeline-item"
             :class="{ 'is-right': index % 2 === 1 }"
           >
-            <div class="timeline-card">
+            <div class="timeline-card" :class="{ 'is-unrecorded': !item.recorded }">
               <span class="timeline-year">{{ item.year }}</span>
               <h4>{{ item.title }}</h4>
               <p>{{ item.description }}</p>
+              <span v-if="!item.recorded" class="timeline-note">该年度无对外发布的里程碑，特此说明</span>
             </div>
           </div>
         </div>
@@ -123,8 +124,12 @@
             <p>{{ member.description }}</p>
           </div>
           <div class="team-social">
-            <a @click="handleNotImplemented"><el-icon><Link /></el-icon></a>
-            <a @click="handleNotImplemented"><el-icon><Message /></el-icon></a>
+            <router-link to="/contact" :title="`前往「联系我们」页面与${member.name}取得联系`">
+              <el-icon><Link /></el-icon>
+            </router-link>
+            <a :href="`mailto:${member.email}`" :title="`发送邮件至 ${member.email}`">
+              <el-icon><Message /></el-icon>
+            </a>
           </div>
         </div>
       </div>
@@ -156,43 +161,55 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { computed, ref } from 'vue'
 
-const handleNotImplemented = () => {
-  ElMessage.info('功能开发中，敬请期待')
+interface TimelineItem {
+  year: number
+  title: string
+  description: string
+  /** 该年份是否有对外发布的里程碑；无记录的年份需在描述中说明原因，而不是直接跳过 */
+  recorded: boolean
 }
 
-const timeline = ref([
-  { year: '2018', title: '公司成立', description: '怀揣梦想，在北京正式成立，开启创业之旅' },
-  { year: '2019', title: '首个里程碑', description: '成功服务100家企业客户，团队规模扩展至20人' },
-  { year: '2021', title: '业务拓展', description: '开设上海、深圳分公司，业务覆盖全国主要城市' },
-  { year: '2023', title: '技术突破', description: '自主研发核心平台上线，获得多项技术专利' },
-  { year: '2024', title: '行业领先', description: '荣获年度最佳创新企业奖，客户满意度达98%' }
+const timelineData = ref<TimelineItem[]>([
+  { year: 2018, title: '公司成立', description: '怀揣梦想，在北京正式成立，开启创业之旅', recorded: true },
+  { year: 2019, title: '首个里程碑', description: '成功服务100家企业客户，团队规模扩展至20人', recorded: true },
+  { year: 2020, title: '沉淀蓄力', description: '受疫情影响暂缓对外扩张，团队专注远程交付体系与内部产品研发，故该年度未发布对外里程碑', recorded: false },
+  { year: 2021, title: '业务拓展', description: '开设上海、深圳分公司，业务覆盖全国主要城市', recorded: true },
+  { year: 2022, title: '稳健深耕', description: '行业调整期聚焦存量客户深耕与产品打磨，该年度未设立对外里程碑，为次年的技术突破积蓄力量', recorded: false },
+  { year: 2023, title: '技术突破', description: '自主研发核心平台上线，获得多项技术专利', recorded: true },
+  { year: 2024, title: '行业领先', description: '荣获年度最佳创新企业奖，客户满意度达98%', recorded: true }
 ])
+
+// 始终按年份升序排列，保证时间轴的先后顺序与年份一致
+const timeline = computed(() => [...timelineData.value].sort((a, b) => a.year - b.year))
 
 const teamMembers = ref([
   {
     name: '张明',
     position: '创始人 & CEO',
+    email: 'zhangming@portal.com',
     avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&crop=face',
     description: '15年行业经验，曾任职于多家知名科技公司'
   },
   {
     name: '李华',
     position: '技术总监',
+    email: 'lihua@portal.com',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face',
     description: '资深架构师，专注于企业级解决方案设计'
   },
   {
     name: '王芳',
     position: '产品总监',
+    email: 'wangfang@portal.com',
     avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face',
     description: '10年产品经验，深谙用户需求与市场趋势'
   },
   {
     name: '赵强',
     position: '运营总监',
+    email: 'zhaoqiang@portal.com',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&crop=face',
     description: '擅长品牌建设与市场推广，推动业务持续增长'
   }
@@ -463,7 +480,7 @@ const teamMembers = ref([
 
 .timeline-card {
   text-align: right;
-  
+
   .timeline-year {
     display: inline-block;
     padding: $spacing-xs $spacing-md;
@@ -474,15 +491,37 @@ const teamMembers = ref([
     border-radius: $border-radius-full;
     margin-bottom: $spacing-sm;
   }
-  
+
   h4 {
     font-size: $font-size-lg;
     margin-bottom: $spacing-xs;
   }
-  
+
   p {
     font-size: $font-size-sm;
     color: $text-color-secondary;
+  }
+
+  // 无对外里程碑的年份：弱化展示，并显式说明原因
+  &.is-unrecorded {
+    .timeline-year {
+      background: $text-color-secondary;
+    }
+
+    h4 {
+      color: $text-color-regular;
+    }
+  }
+
+  .timeline-note {
+    display: inline-block;
+    margin-top: $spacing-sm;
+    padding: 2px $spacing-sm;
+    font-size: $font-size-xs;
+    color: $text-color-secondary;
+    background: $bg-color-light;
+    border: 1px dashed $border-color;
+    border-radius: $border-radius-full;
   }
 }
 
