@@ -51,21 +51,85 @@ const routes: RouteRecordRaw[] = [
   }
 ]
 
+// 由应用接管滚动恢复，避免浏览器默认恢复与 SPA 恢复逻辑互相干扰
+if ('scrollRestoration' in window.history) {
+  window.history.scrollRestoration = 'manual'
+}
+
+const SCROLL_STORAGE_PREFIX = 'portal-scroll:'
+
+function saveScrollPosition(path: string, top: number) {
+  try {
+    window.sessionStorage.setItem(SCROLL_STORAGE_PREFIX + path, String(top))
+  } catch {
+    // sessionStorage 不可用时静默忽略
+  }
+}
+
+function readScrollPosition(path: string): number | null {
+  try {
+    const value = window.sessionStorage.getItem(SCROLL_STORAGE_PREFIX + path)
+    if (value === null) return null
+    const top = Number(value)
+    return Number.isFinite(top) ? top : null
+  } catch {
+    return null
+  }
+}
+
+// 刷新后首次导航若恢复了滚动位置，等待页面资源加载完成后校正一次
+let pendingInitialRestore = false
+
 const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior(_to, _from, savedPosition) {
+  scrollBehavior(to, from, savedPosition) {
+    // 浏览器前进/后退时优先使用历史记录中的位置
     if (savedPosition) {
       return savedPosition
     }
-    return { top: 0 }
+    const restore = () => {
+      const savedTop = readScrollPosition(to.fullPath)
+      return savedTop !== null && savedTop > 0 ? { top: savedTop } : { top: 0 }
+    }
+    if (!from.name) {
+      // 首次进入（含刷新）：无页面过渡动画，直接恢复
+      const savedTop = readScrollPosition(to.fullPath)
+      if (savedTop !== null && savedTop > 0) {
+        pendingInitialRestore = true
+      }
+      return restore()
+    }
+    // 站内导航：等待页面过渡动画（0.2s）结束、新页面渲染完成后再恢复
+    return new Promise((resolve) => {
+      setTimeout(() => resolve(restore()), 250)
+    })
   }
 })
 
-router.beforeEach((to, _from, next) => {
+router.beforeEach((to, from, next) => {
+  // 离开页面前记录滚动位置，便于返回时恢复
+  if (from.name) {
+    saveScrollPosition(from.fullPath, window.scrollY)
+  }
   const title = to.meta.title as string
   document.title = title ? `${title} - 门户网站` : '门户网站'
   next()
+})
+
+// 刷新或关闭页面前记录当前页面的滚动位置
+window.addEventListener('pagehide', () => {
+  saveScrollPosition(router.currentRoute.value.fullPath, window.scrollY)
+})
+
+// 刷新后图片等异步资源可能撑高页面导致恢复位置偏差，待资源就绪后校正一次
+window.addEventListener('load', () => {
+  if (!pendingInitialRestore) return
+  pendingInitialRestore = false
+  const savedTop = readScrollPosition(router.currentRoute.value.fullPath)
+  if (savedTop !== null && savedTop > 0 && Math.abs(window.scrollY - savedTop) > 50) {
+    window.scrollTo({ top: savedTop })
+  }
 })
 
 export default router

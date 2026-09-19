@@ -86,16 +86,17 @@
       <div class="timeline-wrapper">
         <div class="timeline-line"></div>
         <div class="timeline-items">
-          <div 
-            v-for="(item, index) in timeline" 
-            :key="index" 
+          <div
+            v-for="(item, index) in sortedTimeline"
+            :key="item.year"
             class="timeline-item"
-            :class="{ 'is-right': index % 2 === 1 }"
+            :class="{ 'is-right': index % 2 === 1, 'is-quiet': item.quiet }"
           >
             <div class="timeline-card">
               <span class="timeline-year">{{ item.year }}</span>
               <h4>{{ item.title }}</h4>
               <p>{{ item.description }}</p>
+              <span v-if="item.quiet" class="timeline-note">该年度无重大事件记录</span>
             </div>
           </div>
         </div>
@@ -123,8 +124,8 @@
             <p>{{ member.description }}</p>
           </div>
           <div class="team-social">
-            <a @click="handleNotImplemented"><el-icon><Link /></el-icon></a>
-            <a @click="handleNotImplemented"><el-icon><Message /></el-icon></a>
+            <a :title="`复制 ${member.name} 的邮箱地址`" @click="copyEmail(member)"><el-icon><Link /></el-icon></a>
+            <a :href="`mailto:${member.email}`" :title="`发送邮件给 ${member.name}`"><el-icon><Message /></el-icon></a>
           </div>
         </div>
       </div>
@@ -156,47 +157,92 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
-const handleNotImplemented = () => {
-  ElMessage.info('功能开发中，敬请期待')
+interface TimelineItem {
+  year: string
+  title: string
+  description: string
+  /** 该年度无重大事件记录，仅向访客说明原因 */
+  quiet?: boolean
 }
 
-const timeline = ref([
+interface TeamMember {
+  name: string
+  position: string
+  avatar: string
+  description: string
+  email: string
+}
+
+const timeline = ref<TimelineItem[]>([
   { year: '2018', title: '公司成立', description: '怀揣梦想，在北京正式成立，开启创业之旅' },
   { year: '2019', title: '首个里程碑', description: '成功服务100家企业客户，团队规模扩展至20人' },
+  { year: '2020', title: '沉淀蓄力', description: '受疫情影响转为远程协作，专注打磨产品与团队建设，未设立新的里程碑', quiet: true },
   { year: '2021', title: '业务拓展', description: '开设上海、深圳分公司，业务覆盖全国主要城市' },
+  { year: '2022', title: '深耕服务', description: '聚焦既有客户的产品迭代与服务升级，未进行对外扩张，为技术突破积蓄力量', quiet: true },
   { year: '2023', title: '技术突破', description: '自主研发核心平台上线，获得多项技术专利' },
   { year: '2024', title: '行业领先', description: '荣获年度最佳创新企业奖，客户满意度达98%' }
 ])
 
-const teamMembers = ref([
+// 按年份升序排列，保证时间轴先后顺序正确
+const sortedTimeline = computed(() =>
+  [...timeline.value].sort((a, b) => Number(a.year) - Number(b.year))
+)
+
+const teamMembers = ref<TeamMember[]>([
   {
     name: '张明',
     position: '创始人 & CEO',
     avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&crop=face',
-    description: '15年行业经验，曾任职于多家知名科技公司'
+    description: '15年行业经验，曾任职于多家知名科技公司',
+    email: 'zhangming@portal.com'
   },
   {
     name: '李华',
     position: '技术总监',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face',
-    description: '资深架构师，专注于企业级解决方案设计'
+    description: '资深架构师，专注于企业级解决方案设计',
+    email: 'lihua@portal.com'
   },
   {
     name: '王芳',
     position: '产品总监',
     avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face',
-    description: '10年产品经验，深谙用户需求与市场趋势'
+    description: '10年产品经验，深谙用户需求与市场趋势',
+    email: 'wangfang@portal.com'
   },
   {
     name: '赵强',
     position: '运营总监',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&crop=face',
-    description: '擅长品牌建设与市场推广，推动业务持续增长'
+    description: '擅长品牌建设与市场推广，推动业务持续增长',
+    email: 'zhaoqiang@portal.com'
   }
 ])
+
+// 复制成员邮箱地址，作为联系入口
+const copyEmail = async (member: TeamMember) => {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(member.email)
+    } else {
+      // 非安全上下文（如 http 部署）的降级方案
+      const textarea = document.createElement('textarea')
+      textarea.value = member.email
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+    }
+    ElMessage.success(`已复制 ${member.name} 的邮箱：${member.email}`)
+  } catch {
+    ElMessage.info(`请发送邮件至 ${member.email} 联系 ${member.name}`)
+  }
+}
 </script>
 
 <style lang="scss" scoped>
@@ -450,12 +496,34 @@ const teamMembers = ref([
     justify-content: flex-start;
     padding-right: 0;
     padding-left: calc(50% + 30px);
-    
+
     .timeline-card {
       text-align: left;
     }
   }
-  
+
+  // 无重大事件记录的年份：弱化展示，明确表示并非内容缺失
+  &.is-quiet {
+    &::before {
+      width: 12px;
+      height: 12px;
+      background: $bg-color-light;
+      border-color: $text-color-placeholder;
+    }
+
+    .timeline-card {
+      .timeline-year {
+        background: $bg-color-light;
+        color: $text-color-secondary;
+        border: 1px solid $border-color;
+      }
+
+      h4 {
+        color: $text-color-regular;
+      }
+    }
+  }
+
   &:last-child {
     padding-bottom: 0;
   }
@@ -482,6 +550,17 @@ const teamMembers = ref([
   
   p {
     font-size: $font-size-sm;
+    color: $text-color-secondary;
+  }
+
+  .timeline-note {
+    display: inline-block;
+    margin-top: $spacing-sm;
+    padding: 2px $spacing-sm;
+    background: $bg-color-light;
+    border: 1px dashed $border-color;
+    border-radius: $border-radius-sm;
+    font-size: $font-size-xs;
     color: $text-color-secondary;
   }
 }
